@@ -75,7 +75,7 @@ static void handle_get_domain_list(int sock, const struct qrtr_packet *pkt)
 	resp.db_revision = 1;
 
 	while (pd_map->service) {
-		if (!strcmp(pd_maps->service, req.name)) {
+		if (!strcmp(pd_map->service, req.name)) {
 			entry = &resp.domain_list[resp.domain_list_len++];
 
 			strcpy(entry->name, pd_map->domain);
