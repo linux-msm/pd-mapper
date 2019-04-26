@@ -35,6 +35,7 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "json.h"
 #include "servreg_loc.h"
 
 struct pd_map {
@@ -43,10 +44,7 @@ struct pd_map {
 	int instance;
 };
 
-static const struct pd_map pd_maps[] = {
-	{ "kernel/elf_loader", "msm/modem/wlan_pd", 1 },
-	{}
-};
+static struct pd_map *pd_maps;
 
 static void handle_get_domain_list(int sock, const struct qrtr_packet *pkt)
 {
@@ -113,6 +111,80 @@ respond:
 	}
 }
 
+static int pd_maps_load(const char *file)
+{
+	static int num_pd_maps;
+	struct json_value *sr_service;
+	struct json_value *sr_domain;
+	struct json_value *root;
+	struct json_value *it;
+	const char *subdomain;
+	const char *provider;
+	const char *service;
+	const char *domain;
+	const char *soc;
+	struct pd_map *newp;
+	struct pd_map *map;
+	double number;
+	int count;
+	int ret;
+
+	root = json_parse_file(file);
+	if (!root)
+		return -1;
+
+	sr_domain = json_get_child(root, "sr_domain");
+	soc = json_get_string(sr_domain, "soc");
+	domain = json_get_string(sr_domain, "domain");
+	subdomain = json_get_string(sr_domain, "subdomain");
+	ret = json_get_number(sr_domain, "qmi_instance_id", &number);
+	if (ret)
+		return ret;
+
+	if (!soc || !domain || !subdomain) {
+		fprintf(stderr, "failed to parse sr_domain\n");
+		return -1;
+	}
+
+	sr_service = json_get_child(root, "sr_service");
+	count = json_count_children(sr_service);
+	if (count < 0)
+		return count;
+
+	newp = realloc(pd_maps, (num_pd_maps + count + 1) * sizeof(*newp));
+	if (!newp)
+		return -1;
+	pd_maps = newp;
+
+	for (it = sr_service->u.value; it; it = it->next) {
+		provider = json_get_string(it, "provider");
+		service = json_get_string(it, "service");
+
+		if (!provider || !service) {
+			fprintf(stderr,
+				"failed to parse provdider or service from %s\n",
+				file);
+			return -1;
+		}
+
+		map = &pd_maps[num_pd_maps++];
+
+		map->service = malloc(strlen(provider) + strlen(service) + 2);
+		sprintf((char *)map->service, "%s/%s", provider, service);
+
+		map->domain = malloc(strlen(soc) + strlen(domain) + strlen(subdomain) + 3);
+		sprintf((char *)map->domain, "%s/%s/%s", soc, domain, subdomain);
+
+		map->instance = number;
+	}
+
+	pd_maps[num_pd_maps].service = NULL;
+
+	json_free(root);
+
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
 	struct sockaddr_qrtr sq;
@@ -122,6 +194,18 @@ int main(int argc, char **argv)
 	char buf[4096];
 	int ret;
 	int fd;
+	int i;
+
+	for (i = 1; i < argc; i++) {
+		ret = pd_maps_load(argv[i]);
+		if (ret)
+			exit(1);
+	}
+
+	if (!pd_maps) {
+		fprintf(stderr, "no pd maps available\n");
+		exit(1);
+	}
 
 	fd = qrtr_open(0);
 	if (fd < 0) {
