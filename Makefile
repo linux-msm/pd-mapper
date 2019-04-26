@@ -4,6 +4,7 @@ CFLAGS := -Wall -g -O2
 LDFLAGS := -lqrtr
 
 SRCS := pd-mapper.c \
+        json.c \
 	servreg_loc.c
 
 OBJS := $(SRCS:.c=.o)
