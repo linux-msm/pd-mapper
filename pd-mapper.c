@@ -299,7 +299,7 @@ static int pd_load_maps(void)
 	return ret;
 }
 
-int main(int argc, char **argv)
+int main(int argc __unused, char **argv __unused)
 {
 	struct sockaddr_qrtr sq;
 	struct qrtr_packet pkt;
