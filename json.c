@@ -81,7 +81,7 @@ static int json_parse_string(struct json_value *value)
 		return 0;
 	}
 
-	while ((ch = input()) && ch != '"')
+	while ((ch = input()) && ch != '"' && b - buf < sizeof(buf) - 1)
 		*b++ = ch;
 	*b = '\0';
 
@@ -350,7 +350,7 @@ struct json_value *json_parse_file(const char *file)
 
 	ret = json_parse_value(root);
 	if (ret != 1) {
-		free(root);
+		json_free(root);
 		return NULL;
 	}
 
