@@ -28,13 +28,20 @@
  * ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
  * POSSIBILITY OF SUCH DAMAGE.
  */
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <err.h>
 #include <errno.h>
+#include <dirent.h>
+#include <fcntl.h>
+#include <libgen.h>
 #include <libqrtr.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
+#include "assoc.h"
 #include "json.h"
 #include "servreg_loc.h"
 
@@ -111,7 +118,7 @@ respond:
 	}
 }
 
-static int pd_maps_load(const char *file)
+static int pd_load_map(const char *file)
 {
 	static int num_pd_maps;
 	struct json_value *sr_service;
@@ -185,6 +192,113 @@ static int pd_maps_load(const char *file)
 	return 0;
 }
 
+#define FIRMWARE_BASE	"/lib/firmware/"
+
+static int pd_enumerate_jsons(struct assoc *json_set)
+{
+	char firmware_value[PATH_MAX];
+	char json_path[PATH_MAX];
+	char firmware_attr[32];
+	struct dirent *fw_de;
+	char path[PATH_MAX];
+	struct dirent *de;
+	int firmware_fd;
+	DIR *class_dir;
+	int class_fd;
+	DIR *fw_dir;
+	size_t len;
+	size_t n;
+
+	class_fd = open("/sys/class/remoteproc", O_RDONLY | O_DIRECTORY);
+	if (class_fd < 0) {
+		warn("failed to open remoteproc class");
+		return -1;
+	}
+
+	class_dir = fdopendir(class_fd);
+	if (!class_dir) {
+		warn("failed to opendir");
+		goto close_class;
+	}
+
+	while ((de = readdir(class_dir)) != NULL) {
+		if (!strcmp(de->d_name, ".") || !strcmp(de->d_name, ".."))
+			continue;
+
+		if (strlen(de->d_name) + sizeof("/firmware") > sizeof(firmware_attr))
+			continue;
+
+		strcpy(firmware_attr, de->d_name);
+		strcat(firmware_attr, "/firmware");
+
+		firmware_fd = openat(class_fd, firmware_attr, O_RDONLY);
+		if (firmware_fd < 0)
+			continue;
+
+		n = read(firmware_fd, firmware_value, sizeof(firmware_value));
+		close(firmware_fd);
+		if (n < 0) {
+			continue;
+		}
+
+		if (strlen(FIRMWARE_BASE) + strlen(firmware_value) + 1 > sizeof(path))
+			continue;
+
+		strcpy(path, FIRMWARE_BASE);
+		strcat(path, dirname(firmware_value));
+
+		fw_dir = opendir(path);
+		while ((fw_de = readdir(fw_dir)) != NULL) {
+			if (!strcmp(fw_de->d_name, ".") || !strcmp(fw_de->d_name, ".."))
+				continue;
+
+			len = strlen(fw_de->d_name);
+			if (len < 5 || strcmp(&fw_de->d_name[len - 4], ".jsn"))
+				continue;
+
+			if (strlen(FIRMWARE_BASE) + strlen(firmware_value) + 1 +
+			    strlen(fw_de->d_name) + 1 > sizeof(path))
+					continue;
+
+			strcpy(json_path, path);
+			strcat(json_path, "/");
+			strcat(json_path, fw_de->d_name);
+
+			assoc_set(json_set, json_path, NULL);
+		}
+
+		closedir(fw_dir);
+	}
+
+	closedir(class_dir);
+close_class:
+	close(class_fd);
+
+	return 0;
+}
+
+static int pd_load_maps(void)
+{
+	struct assoc json_set;
+	unsigned long it;
+	const char *jsn;
+	int ret = 0;
+
+	assoc_init(&json_set, 20);
+
+	pd_enumerate_jsons(&json_set);
+
+	assoc_foreach(jsn, NULL, &json_set, it) {
+		ret = pd_load_map(jsn);
+		if (ret < 0)
+			break;
+	}
+
+	assoc_destroy(&json_set);
+
+	return ret;
+}
+
 int main(int argc, char **argv)
 {
 	struct sockaddr_qrtr sq;
@@ -194,13 +308,10 @@ int main(int argc, char **argv)
 	char buf[4096];
 	int ret;
 	int fd;
-	int i;
 
-	for (i = 1; i < argc; i++) {
-		ret = pd_maps_load(argv[i]);
-		if (ret)
-			exit(1);
-	}
+	ret = pd_load_maps();
+	if (ret)
+		exit(1);
 
 	if (!pd_maps) {
 		fprintf(stderr, "no pd maps available\n");
