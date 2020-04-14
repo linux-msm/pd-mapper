@@ -193,7 +193,11 @@ static int pd_load_map(const char *file)
 	return 0;
 }
 
+#ifndef ANDROID
 #define FIRMWARE_BASE	"/lib/firmware/"
+#else
+#define FIRMWARE_BASE	"/vendor/firmware/"
+#endif
 
 static int pd_enumerate_jsons(struct assoc *json_set)
 {
