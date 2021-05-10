@@ -15,7 +15,9 @@ struct qmi_elem_info servreg_loc_qmi_result_ei[] = {
 		.elem_size = sizeof(uint16_t),
 		.offset = offsetof(struct servreg_loc_qmi_result, error),
 	},
-	{}
+	{
+		.data_type = QMI_EOTI,
+	}
 };
 
 struct qmi_elem_info servreg_loc_domain_list_entry_ei[] = {
@@ -43,7 +45,9 @@ struct qmi_elem_info servreg_loc_domain_list_entry_ei[] = {
 		.elem_size = sizeof(uint32_t),
 		.offset = offsetof(struct servreg_loc_domain_list_entry, service_data),
 	},
-	{}
+	{
+		.data_type = QMI_EOTI,
+	}
 };
 
 struct qmi_elem_info servreg_loc_get_domain_list_req_ei[] = {
@@ -69,7 +73,9 @@ struct qmi_elem_info servreg_loc_get_domain_list_req_ei[] = {
 		.tlv_type = 16,
 		.offset = offsetof(struct servreg_loc_get_domain_list_req, offset),
 	},
-	{}
+	{
+		.data_type = QMI_EOTI,
+	}
 };
 
 struct qmi_elem_info servreg_loc_get_domain_list_resp_ei[] = {
@@ -132,7 +138,9 @@ struct qmi_elem_info servreg_loc_get_domain_list_resp_ei[] = {
 		.offset = offsetof(struct servreg_loc_get_domain_list_resp, domain_list),
 		.ei_array = servreg_loc_domain_list_entry_ei,
 	},
-	{}
+	{
+		.data_type = QMI_EOTI,
+	}
 };
 
 struct qmi_elem_info servreg_loc_pfr_req_ei[] = {
@@ -152,7 +160,9 @@ struct qmi_elem_info servreg_loc_pfr_req_ei[] = {
 		.tlv_type = 2,
 		.offset = offsetof(struct servreg_loc_pfr_req, reason)
 	},
-	{}
+	{
+		.data_type = QMI_EOTI,
+	}
 };
 
 struct qmi_elem_info servreg_loc_pfr_resp_ei[] = {
@@ -164,6 +174,8 @@ struct qmi_elem_info servreg_loc_pfr_resp_ei[] = {
 		.offset = offsetof(struct servreg_loc_pfr_resp, result),
 		.ei_array = servreg_loc_qmi_result_ei,
 	},
-	{}
+	{
+		.data_type = QMI_EOTI,
+	}
 };
 
