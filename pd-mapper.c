@@ -251,6 +251,11 @@ static int pd_enumerate_jsons(struct assoc *json_set)
 		strcat(path, dirname(firmware_value));
 
 		fw_dir = opendir(path);
+		if (!fw_dir) {
+			warn("Cannot open %s", path);
+			continue;
+		}
+
 		while ((fw_de = readdir(fw_dir)) != NULL) {
 			if (!strcmp(fw_de->d_name, ".") || !strcmp(fw_de->d_name, ".."))
 				continue;
