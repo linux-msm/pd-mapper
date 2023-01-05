@@ -1,9 +1,9 @@
 PD_MAPPER := pd-mapper
 
-CFLAGS := -Wall -g -O2
-LDFLAGS := -lqrtr
-
+CFLAGS += -Wall -g -O2
+LDFLAGS += -lqrtr
 prefix ?= /usr/local
+
 bindir := $(prefix)/bin
 servicedir := $(prefix)/lib/systemd/system
 
