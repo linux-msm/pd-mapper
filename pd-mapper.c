@@ -199,6 +199,12 @@ static int pd_load_map(const char *file)
 #define FIRMWARE_BASE	"/vendor/firmware/"
 #endif
 
+static char *known_extensions[] = {
+  ".jsn.xz",
+  ".jsn",
+  NULL,
+};
+
 static int pd_enumerate_jsons(struct assoc *json_set)
 {
 	char firmware_value[PATH_MAX];
@@ -261,11 +267,24 @@ static int pd_enumerate_jsons(struct assoc *json_set)
 		}
 
 		while ((fw_de = readdir(fw_dir)) != NULL) {
+			int extens_index;
+			bool found = false;
+
 			if (!strcmp(fw_de->d_name, ".") || !strcmp(fw_de->d_name, ".."))
 				continue;
 
 			len = strlen(fw_de->d_name);
-			if (len < 5 || strcmp(&fw_de->d_name[len - 4], ".jsn"))
+
+			for (extens_index = 0; known_extensions[extens_index] != NULL; extens_index++) {
+				int extens_len = strlen(known_extensions[extens_index]);
+				if (len > extens_len &&
+				    !strcmp(&fw_de->d_name[len - extens_len], known_extensions[extens_index])) {
+					found = true;
+					break;
+				}
+			}
+
+			if (!found)
 				continue;
 
 			if (strlen(FIRMWARE_BASE) + strlen(firmware_value) + 1 +
