@@ -32,6 +32,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <lzma.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -314,6 +315,8 @@ struct json_value *json_parse(const char *json)
 	return root;
 }
 
+extern int lzma_decomp(const char *file);
+
 struct json_value *json_parse_file(const char *file)
 {
 	struct json_value *root;
@@ -321,7 +324,11 @@ struct json_value *json_parse_file(const char *file)
 	int ret;
 	int fd;
 
-	fd = open(file, O_RDONLY);
+	if ((strlen(file) > 3) && !strcmp(&file[strlen(file)-3], ".xz"))
+	        fd = lzma_decomp(file);
+	else
+	        fd = open(file, O_RDONLY);
+
 	if (fd < 0) {
 		fprintf(stderr, "failed to open %s: %s\n", file, strerror(errno));
 		return NULL;
