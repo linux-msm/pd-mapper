@@ -193,10 +193,72 @@ static int pd_load_map(const char *file)
 	return 0;
 }
 
+static int concat_path(char *base_path, char *firmware_path, char *path)
+{
+	if ((strlen(base_path) > 0) && (strlen(base_path) + 1 + strlen(firmware_path) + 1 < PATH_MAX)) {
+		strcpy(path, base_path);
+		strcat(path, "/");
+		strcat(path, firmware_path);
+		return 0;
+	} else {
+		warn("Path length exceeded %lu\n", sizeof(path));
+	}
+	return -1;
+}
+
 #ifndef ANDROID
 #define FIRMWARE_BASE	"/lib/firmware/"
+#define FIRMWARE_PARAM_PATH	"/sys/module/firmware_class/parameters/path"
+
+static DIR *opendir_firmware(char *firmware_path, char *out_path_opened)
+{
+	int ret = 0, n;
+	DIR *fw_dir = NULL;
+	int fw_param_path = open(FIRMWARE_PARAM_PATH, O_RDONLY);
+	char fw_sysfs_path[PATH_MAX];
+
+	if (fw_param_path < 0) {
+		warn("Cannot open sysfs path: %s", FIRMWARE_PARAM_PATH);
+		close(fw_param_path);
+		goto err;
+	}
+
+	n = read(fw_param_path, fw_sysfs_path, sizeof(char) * PATH_MAX);
+	close(fw_param_path);
+	if (n < 0) {
+		warn("Cannot read sysfs path: %s", FIRMWARE_PARAM_PATH);
+		goto err;
+	}
+
+	fw_sysfs_path[n - 1] = '\0';
+
+	ret = concat_path(fw_sysfs_path, firmware_path, out_path_opened);
+	if (ret)
+		goto err;
+
+	fw_dir = opendir(out_path_opened);
+	if (!fw_dir)
+		goto err;
+
+	return fw_dir;
+err:
+	ret = concat_path(fw_sysfs_path, FIRMWARE_BASE, out_path_opened);
+	if (ret)
+		return fw_dir;
+
+	fw_dir = opendir(out_path_opened);
+	if (!fw_dir)
+		warn("Cannot open firmware path: %s", fw_sysfs_path);
+
+	return fw_dir;
+}
 #else
 #define FIRMWARE_BASE	"/vendor/firmware/"
+
+DIR opendir_firmware(char *firmware_path)
+{
+	return open_concat_path("/vendor/firmware/", firmware_path);
+}
 #endif
 
 static char *known_extensions[] = {
@@ -208,6 +270,8 @@ static char *known_extensions[] = {
 static int pd_enumerate_jsons(struct assoc *json_set)
 {
 	char firmware_value[PATH_MAX];
+	char *firmware_value_copy = NULL;
+	char *firmware_path = NULL;
 	char json_path[PATH_MAX];
 	char firmware_attr[32];
 	struct dirent *fw_de;
@@ -253,18 +317,13 @@ static int pd_enumerate_jsons(struct assoc *json_set)
 		}
 
 		firmware_value[n] = '\0';
+		/* dirname() function can (and will) modify the parameter, so make a copy */
+		firmware_value_copy = strdup(firmware_value);
+		firmware_path = dirname(firmware_value_copy);
 
-		if (strlen(FIRMWARE_BASE) + strlen(firmware_value) + 1 > sizeof(path))
+		fw_dir = opendir_firmware(firmware_path, path);
+		if (!fw_dir)
 			continue;
-
-		strcpy(path, FIRMWARE_BASE);
-		strcat(path, dirname(firmware_value));
-
-		fw_dir = opendir(path);
-		if (!fw_dir) {
-			warn("Cannot open %s", path);
-			continue;
-		}
 
 		while ((fw_de = readdir(fw_dir)) != NULL) {
 			int extens_index;
@@ -287,9 +346,8 @@ static int pd_enumerate_jsons(struct assoc *json_set)
 			if (!found)
 				continue;
 
-			if (strlen(FIRMWARE_BASE) + strlen(firmware_value) + 1 +
-			    strlen(fw_de->d_name) + 1 > sizeof(path))
-					continue;
+			if (strlen(path) + 1 + strlen(fw_de->d_name) + 1 > sizeof(json_path))
+				continue;
 
 			strcpy(json_path, path);
 			strcat(json_path, "/");
@@ -299,6 +357,7 @@ static int pd_enumerate_jsons(struct assoc *json_set)
 		}
 
 		closedir(fw_dir);
+		free(firmware_value_copy);
 	}
 
 	closedir(class_dir);
