@@ -205,10 +205,27 @@ static char *known_extensions[] = {
   NULL,
 };
 
+static void read_fw_path_from_sysfs(char *outbuffer, size_t bufsize)
+{
+	size_t pathsize;
+	FILE *f = fopen("/sys/module/firmware_class/parameters/path", "rt");
+	if (!f)
+		return;
+	pathsize = fread(outbuffer, sizeof(char), bufsize, f);
+	fclose(f);
+	if (pathsize <= 0)
+		return;
+	/* truncate newline */
+	outbuffer[pathsize - 1] = '\0';
+}
+
 static int pd_enumerate_jsons(struct assoc *json_set)
 {
 	char firmware_value[PATH_MAX];
+	char *firmware_value_copy = NULL;
+	char *firmware_path = NULL;
 	char json_path[PATH_MAX];
+	char fw_sysfs_path[PATH_MAX];
 	char firmware_attr[32];
 	struct dirent *fw_de;
 	char path[PATH_MAX];
@@ -219,6 +236,8 @@ static int pd_enumerate_jsons(struct assoc *json_set)
 	DIR *fw_dir;
 	size_t len;
 	size_t n;
+
+	read_fw_path_from_sysfs(fw_sysfs_path, sizeof(fw_sysfs_path));
 
 	class_fd = open("/sys/class/remoteproc", O_RDONLY | O_DIRECTORY);
 	if (class_fd < 0) {
@@ -253,18 +272,35 @@ static int pd_enumerate_jsons(struct assoc *json_set)
 		}
 
 		firmware_value[n] = '\0';
+		/* dirname() function can (and will) modify the parameter, so make a copy */
+		firmware_value_copy = strdup(firmware_value);
+		firmware_path = dirname(firmware_value_copy);
 
-		if (strlen(FIRMWARE_BASE) + strlen(firmware_value) + 1 > sizeof(path))
-			continue;
+		fw_dir = NULL;
+		/* first try to open path from sysfs */
+		if ((strlen(fw_sysfs_path) > 0) && (strlen(fw_sysfs_path) + 1 + strlen(firmware_value) + 1 < sizeof(path))) {
+			strcpy(path, fw_sysfs_path);
+			strcat(path, "/");
+			strcat(path, firmware_path);
 
-		strcpy(path, FIRMWARE_BASE);
-		strcat(path, dirname(firmware_value));
-
-		fw_dir = opendir(path);
-		if (!fw_dir) {
-			warn("Cannot open %s", path);
-			continue;
+			fw_dir = opendir(path);
+			if (!fw_dir)
+				warn("Cannot open sysfs path: %s", path);
 		}
+
+		/* If dir is not opened, retry with base path */
+		if (!fw_dir && (strlen(FIRMWARE_BASE) + strlen(firmware_value) + 1 < sizeof(path))) {
+			strcpy(path, FIRMWARE_BASE);
+			strcat(path, firmware_path);
+
+			fw_dir = opendir(path);
+			if (!fw_dir)
+				warn("Cannot open base path: %s", path);
+		}
+
+		/* none of directories were opened */
+		if (!fw_dir)
+			continue;
 
 		while ((fw_de = readdir(fw_dir)) != NULL) {
 			int extens_index;
@@ -287,9 +323,8 @@ static int pd_enumerate_jsons(struct assoc *json_set)
 			if (!found)
 				continue;
 
-			if (strlen(FIRMWARE_BASE) + strlen(firmware_value) + 1 +
-			    strlen(fw_de->d_name) + 1 > sizeof(path))
-					continue;
+			if (strlen(path) + 1 + strlen(fw_de->d_name) + 1 > sizeof(json_path))
+				continue;
 
 			strcpy(json_path, path);
 			strcat(json_path, "/");
@@ -299,6 +334,7 @@ static int pd_enumerate_jsons(struct assoc *json_set)
 		}
 
 		closedir(fw_dir);
+		free(firmware_value_copy);
 	}
 
 	closedir(class_dir);
