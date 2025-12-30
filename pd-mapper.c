@@ -195,15 +195,16 @@ static int pd_load_map(const char *file)
 
 static int concat_path(char *base_path, char *firmware_path, char *path, size_t path_len)
 {
-	if ((strlen(base_path) > 0) && (strlen(base_path) + 1 + strlen(firmware_path) + 1 < path_len)) {
-		strcpy(path, base_path);
-		strcat(path, "/");
-		strcat(path, firmware_path);
-		return 0;
-	} else {
+	if (strlen(base_path) + 1 + strlen(firmware_path) + 1 >= path_len) {
 		warn("Path length exceeded %lu\n", path_len);
+		return -1;
 	}
-	return -1;
+
+	strcpy(path, base_path);
+	strcat(path, "/");
+	strcat(path, firmware_path);
+
+	return 0;
 }
 
 #ifndef ANDROID
@@ -229,6 +230,10 @@ static DIR *opendir_firmware(char *firmware_path, char *out_path_opened, size_t 
 		warn("Cannot read sysfs path: %s", FIRMWARE_PARAM_PATH);
 		goto err;
 	}
+
+	/* path not set in sysfs */
+	if (n <= 1)
+		goto err;
 
 	fw_sysfs_path[n - 1] = '\0';
 
