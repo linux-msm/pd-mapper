@@ -242,7 +242,7 @@ static DIR *opendir_firmware(char *firmware_path, char *out_path_opened, size_t 
 
 	return fw_dir;
 err:
-	ret = concat_path(fw_sysfs_path, FIRMWARE_BASE, out_path_opened, out_path_size);
+	ret = concat_path(FIRMWARE_BASE, firmware_path, out_path_opened, out_path_size);
 	if (ret)
 		return fw_dir;
 
