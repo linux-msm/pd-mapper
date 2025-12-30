@@ -193,15 +193,15 @@ static int pd_load_map(const char *file)
 	return 0;
 }
 
-static int concat_path(char *base_path, char *firmware_path, char *path)
+static int concat_path(char *base_path, char *firmware_path, char *path, size_t path_len)
 {
-	if ((strlen(base_path) > 0) && (strlen(base_path) + 1 + strlen(firmware_path) + 1 < PATH_MAX)) {
+	if ((strlen(base_path) > 0) && (strlen(base_path) + 1 + strlen(firmware_path) + 1 < path_len)) {
 		strcpy(path, base_path);
 		strcat(path, "/");
 		strcat(path, firmware_path);
 		return 0;
 	} else {
-		warn("Path length exceeded %lu\n", sizeof(path));
+		warn("Path length exceeded %lu\n", path_len);
 	}
 	return -1;
 }
@@ -210,7 +210,7 @@ static int concat_path(char *base_path, char *firmware_path, char *path)
 #define FIRMWARE_BASE	"/lib/firmware/"
 #define FIRMWARE_PARAM_PATH	"/sys/module/firmware_class/parameters/path"
 
-static DIR *opendir_firmware(char *firmware_path, char *out_path_opened)
+static DIR *opendir_firmware(char *firmware_path, char *out_path_opened, size_t out_path_size)
 {
 	int ret = 0, n;
 	DIR *fw_dir = NULL;
@@ -232,7 +232,7 @@ static DIR *opendir_firmware(char *firmware_path, char *out_path_opened)
 
 	fw_sysfs_path[n - 1] = '\0';
 
-	ret = concat_path(fw_sysfs_path, firmware_path, out_path_opened);
+	ret = concat_path(fw_sysfs_path, firmware_path, out_path_opened, out_path_size);
 	if (ret)
 		goto err;
 
@@ -242,7 +242,7 @@ static DIR *opendir_firmware(char *firmware_path, char *out_path_opened)
 
 	return fw_dir;
 err:
-	ret = concat_path(fw_sysfs_path, FIRMWARE_BASE, out_path_opened);
+	ret = concat_path(fw_sysfs_path, FIRMWARE_BASE, out_path_opened, out_path_size);
 	if (ret)
 		return fw_dir;
 
@@ -321,7 +321,7 @@ static int pd_enumerate_jsons(struct assoc *json_set)
 		firmware_value_copy = strdup(firmware_value);
 		firmware_path = dirname(firmware_value_copy);
 
-		fw_dir = opendir_firmware(firmware_path, path);
+		fw_dir = opendir_firmware(firmware_path, path, sizeof(path));
 		if (!fw_dir)
 			continue;
 
