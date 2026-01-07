@@ -1,5 +1,6 @@
 [Unit]
 Description=Qualcomm PD mapper service
+ConditionDirectoryNotEmpty=/sys/class/remoteproc
 
 [Service]
 ExecStart=PD_MAPPER_PATH/pd-mapper
