@@ -32,7 +32,9 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#if !defined(__ANDROID__)
 #include <lzma.h>
+#endif
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -315,7 +317,9 @@ struct json_value *json_parse(const char *json)
 	return root;
 }
 
+#if !defined(__ANDROID__)
 extern int lzma_decomp(const char *file);
+#endif
 
 struct json_value *json_parse_file(const char *file)
 {
@@ -324,10 +328,12 @@ struct json_value *json_parse_file(const char *file)
 	int ret;
 	int fd;
 
+#if !defined(__ANDROID__)
 	if ((strlen(file) > 3) && !strcmp(&file[strlen(file)-3], ".xz"))
 	        fd = lzma_decomp(file);
 	else
-	        fd = open(file, O_RDONLY);
+#endif
+	fd = open(file, O_RDONLY);
 
 	if (fd < 0) {
 		fprintf(stderr, "failed to open %s: %s\n", file, strerror(errno));
