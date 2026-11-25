@@ -50,15 +50,20 @@ static int json_parse_property(struct json_value *value);
 
 static int input(void)
 {
-	if (input_pos >= input_len)
+	if (input_pos >= input_len) {
+		/* advance once past the end so that the following unput() returns to the end */
+		if (input_pos <= input_len)
+			input_pos++;
 		return 0;
+	}
 
-	return input_buf[input_pos++];
+	return (unsigned char)input_buf[input_pos++];
 }
 
 static void unput(void)
 {
-	input_pos--;
+	if (input_pos > 0)
+		input_pos--;
 }
 
 static void json_skip_whitespace(void)
