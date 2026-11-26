@@ -50,15 +50,20 @@ static int json_parse_property(struct json_value *value);
 
 static int input(void)
 {
-	if (input_pos >= input_len)
+	if (input_pos >= input_len) {
+		/* advance once past the end so that the following unput() returns to the end */
+		if (input_pos <= input_len)
+			input_pos++;
 		return 0;
+	}
 
-	return input_buf[input_pos++];
+	return (unsigned char)input_buf[input_pos++];
 }
 
 static void unput(void)
 {
-	input_pos--;
+	if (input_pos > 0)
+		input_pos--;
 }
 
 static void json_skip_whitespace(void)
@@ -203,7 +208,7 @@ static int json_parse_array(struct json_value *array)
 
 		ret = json_parse_value(value);
 		if (ret <= 0) {
-			free(value);
+			json_free(value);
 			return -1;
 		}
 
@@ -247,7 +252,7 @@ static int json_parse_object(struct json_value *object)
 
 		ret = json_parse_property(value);
 		if (ret <= 0) {
-			free(value);
+			json_free(value);
 			return -1;
 		}
 
@@ -308,7 +313,7 @@ struct json_value *json_parse(const char *json)
 
 	ret = json_parse_value(root);
 	if (ret != 1) {
-		free(root);
+		json_free(root);
 		return NULL;
 	}
 
@@ -335,8 +340,10 @@ struct json_value *json_parse_file(const char *file)
 	}
 
 	ret = fstat(fd, &sb);
-	if (ret < 0)
+	if (ret < 0) {
+		close(fd);
 		return NULL;
+	}
 
 	input_pos = 0;
 	input_len = sb.st_size;
@@ -348,18 +355,20 @@ struct json_value *json_parse_file(const char *file)
 
 	if (ret != input_len) {
 		fprintf(stderr, "failed to read %d bytes form %s\n", input_len, file);
+		free((void *)input_buf);
+		input_buf = NULL;
 		return NULL;
 	}
 
 	root = calloc(1, sizeof(*root));
-	if (!root)
-		return NULL;
-
-	ret = json_parse_value(root);
-	if (ret != 1) {
+	if (root && json_parse_value(root) != 1) {
 		json_free(root);
-		return NULL;
+		root = NULL;
 	}
+
+	/* all parsed values are copies, the input buffer is no longer needed */
+	free((void *)input_buf);
+	input_buf = NULL;
 
 	return root;
 }
