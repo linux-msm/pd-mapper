@@ -403,6 +403,10 @@ int main(int argc, char **argv)
 	char buf[4096];
 	int ret;
 	int fd;
+	int i;
+
+	for (i = 0; i < 10; i++)
+		fprintf(stderr, "WARNING: THIS PROJECT IS DEPRECATED. USE THE IN-KERNEL IMPLEMENTATION (CONFIG_QCOM_PD_MAPPER) INSTEAD.\n");
 
 	ret = pd_load_maps();
 	if (ret)
